@@ -52,33 +52,53 @@ export const Route = createFileRoute("/api/chat")({
         if (sessionId) headers["Modal-Session-ID"] = sessionId;
 
         const stream = body.stream === true;
+        const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
+        const payload = JSON.stringify({
+          model: MODEL,
+          messages: body.messages,
+          temperature: typeof body.temperature === "number" ? body.temperature : 0.7,
+          top_p: typeof body.top_p === "number" ? body.top_p : 0.9,
+          max_tokens: typeof body.max_tokens === "number" ? body.max_tokens : 2048,
+          stream,
+          reasoning: { enabled: true },
+        });
 
-        let upstream: Response;
-        try {
-          upstream = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              model: MODEL,
-              messages: body.messages,
-              temperature: typeof body.temperature === "number" ? body.temperature : 0.7,
-              top_p: typeof body.top_p === "number" ? body.top_p : 0.9,
-              max_tokens: typeof body.max_tokens === "number" ? body.max_tokens : 2048,
-              stream,
-              reasoning: { enabled: true },
-            }),
-          });
-        } catch (error) {
+        // Serverless (Modal) cold start: the first request boots the container,
+        // which answers 5xx / drops the connection until it is ready.
+        const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+        const maxWaitMs = 240_000;
+        const startedAt = Date.now();
+        let attempt = 0;
+        let upstream: Response | null = null;
+        let lastError = "";
+
+        while (Date.now() - startedAt < maxWaitMs) {
+          attempt++;
+          try {
+            const res = await fetch(url, { method: "POST", headers, body: payload });
+            if (res.ok) {
+              upstream = res;
+              break;
+            }
+            const text = await res.text();
+            // 5xx / 429 during boot -> keep waking it up; other errors are final.
+            if (res.status < 500 && res.status !== 429) {
+              return errorResponse(text || `A modell hibát adott (${res.status}).`, res.status);
+            }
+            lastError = text || `HTTP ${res.status}`;
+          } catch (error) {
+            lastError = (error as Error).message;
+          }
+          await sleep(Math.min(2000 + attempt * 1000, 8000));
+        }
+
+        if (!upstream) {
           return errorResponse(
-            `Nem sikerült elérni a modellt: ${(error as Error).message}`,
-            502,
+            `A modell nem ébredt fel időben (cold start). Utolsó hiba: ${lastError}`,
+            503,
           );
         }
 
-        if (!upstream.ok) {
-          const text = await upstream.text();
-          return errorResponse(text || `A modell hibát adott (${upstream.status}).`, upstream.status);
-        }
 
         if (stream) {
           return new Response(upstream.body, {
