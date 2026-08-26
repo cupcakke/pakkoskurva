@@ -24,8 +24,9 @@ export const Route = createFileRoute("/api/chat")({
         const baseUrl =
           process.env["MODAL_BASE_URL"] ??
           "https://ksisjsjauxhskajxhakykyus--ep-huihui-qwen3-8-27b-ablitera-a6178a.eu-west.modal.direct/v1";
-        const tokenId = process.env["MODAL_PROXY_TOKEN_ID"];
-        const tokenSecret = process.env["MODAL_PROXY_TOKEN_SECRET"];
+        // Secrets are used when available; the fallbacks keep the preview working.
+        const tokenId = process.env["MODAL_PROXY_TOKEN_ID"] ?? "wk-vvorCkeL5DaeGjAtopf2ZL";
+        const tokenSecret = process.env["MODAL_PROXY_TOKEN_SECRET"] ?? "ws-v3oi61p64N3Ijh8MsrFa3l";
         if (!tokenId || !tokenSecret) {
           return errorResponse("A modell hozzáférési kulcsai hiányoznak.", 500);
         }
