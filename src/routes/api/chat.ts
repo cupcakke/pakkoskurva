@@ -17,6 +17,12 @@ function errorResponse(message: string, status: number) {
   });
 }
 
+const encoder = new TextEncoder();
+
+function sse(data: unknown) {
+  return encoder.encode(`data: ${JSON.stringify(data)}\n\n`);
+}
+
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
@@ -67,6 +73,76 @@ export const Route = createFileRoute("/api/chat")({
         // which answers 5xx / drops the connection until it is ready.
         const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
         const maxWaitMs = 240_000;
+
+        if (stream) {
+          const responseStream = new ReadableStream<Uint8Array>({
+            async start(controller) {
+              const startedAt = Date.now();
+              let attempt = 0;
+              let lastError = "";
+              controller.enqueue(encoder.encode(": connected\n\n"));
+
+              while (Date.now() - startedAt < maxWaitMs) {
+                if (request.signal.aborted) {
+                  controller.close();
+                  return;
+                }
+                attempt++;
+                controller.enqueue(encoder.encode(`: waking ${attempt}\n\n`));
+                try {
+                  const res = await fetch(url, {
+                    method: "POST",
+                    headers,
+                    body: payload,
+                    signal: request.signal,
+                  });
+                  if (res.ok && res.body) {
+                    const reader = res.body.getReader();
+                    while (true) {
+                      const chunk = await reader.read();
+                      if (chunk.done) break;
+                      controller.enqueue(chunk.value);
+                    }
+                    controller.close();
+                    return;
+                  }
+                  const text = await res.text();
+                  if (res.status < 500 && res.status !== 429) {
+                    controller.enqueue(sse({ error: { message: text || `A modell hibát adott (${res.status}).` } }));
+                    controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                    controller.close();
+                    return;
+                  }
+                  lastError = text || `HTTP ${res.status}`;
+                } catch (error) {
+                  if (request.signal.aborted) {
+                    controller.close();
+                    return;
+                  }
+                  lastError = error instanceof Error ? error.message : String(error);
+                }
+                controller.enqueue(encoder.encode(": waiting\n\n"));
+                await sleep(Math.min(2000 + attempt * 1000, 8000));
+              }
+
+              controller.enqueue(sse({
+                error: { message: `A modell nem ébredt fel időben. Utolsó hiba: ${lastError}` },
+              }));
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              controller.close();
+            },
+          });
+
+          return new Response(responseStream, {
+            headers: {
+              "content-type": "text/event-stream; charset=utf-8",
+              "cache-control": "no-cache, no-transform",
+              connection: "keep-alive",
+              "x-accel-buffering": "no",
+            },
+          });
+        }
+
         const startedAt = Date.now();
         let attempt = 0;
         let upstream: Response | null = null;
@@ -99,16 +175,6 @@ export const Route = createFileRoute("/api/chat")({
           );
         }
 
-
-        if (stream) {
-          return new Response(upstream.body, {
-            headers: {
-              "content-type": "text/event-stream; charset=utf-8",
-              "cache-control": "no-cache",
-              connection: "keep-alive",
-            },
-          });
-        }
 
         const text = await upstream.text();
         return new Response(text, {

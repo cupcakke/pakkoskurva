@@ -1451,7 +1451,13 @@ body{ position: relative; }
   }
 
   function saveHistory(){
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(history)); }catch(e){}
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+      return true;
+    }catch(e){
+      toast("A beszélgetés mentése nem sikerült.", "err");
+      return false;
+    }
   }
 
   function previewText(msgs){
@@ -1540,6 +1546,7 @@ body{ position: relative; }
     if(!text && !selectedImages.length) return;
     var content = addImageParts(text || "Elemezd a csatolt képet.");
     messages.push({role:"user", content:content});
+    persistCurrent();
     textarea.value = "";
     textarea.style.height = "auto";
     selectedImages = [];
@@ -1554,14 +1561,43 @@ body{ position: relative; }
       var response = await fetch("/api/chat", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({messages:modelMessages, max_tokens:4096, temperature:0.7, top_p:0.9}),
+        body:JSON.stringify({messages:modelMessages, max_tokens:4096, temperature:0.7, top_p:0.9, stream:true}),
         signal: abortController.signal
       });
-      var result = await response.json();
-      if(!response.ok) throw new Error(result.error && result.error.message ? result.error.message : "A modell nem válaszolt.");
-      var assistantMessage = result.choices && result.choices[0] && result.choices[0].message;
-      if(!assistantMessage || (typeof assistantMessage.content !== "string" && typeof assistantMessage.reasoning_content !== "string")) throw new Error("A modell válasza érvénytelen.");
-      var parsedMessage = splitAssistantMessage(assistantMessage);
+      if(!response.ok){
+        var errorResult = await response.json().catch(function(){ return null; });
+        throw new Error(errorResult && errorResult.error && errorResult.error.message ? errorResult.error.message : "A modell nem válaszolt.");
+      }
+      if(!response.body) throw new Error("A modell nem küldött választ.");
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = "";
+      var answer = "";
+      var thinking = "";
+      while(true){
+        var read = await reader.read();
+        if(read.done) break;
+        buffer += decoder.decode(read.value, {stream:true});
+        var blocks = buffer.split("\n\n");
+        buffer = blocks.pop() || "";
+        blocks.forEach(function(block){
+          var lines = block.split("\n");
+          lines.forEach(function(line){
+            if(line.indexOf("data:") !== 0) return;
+            var raw = line.slice(5).trim();
+            if(!raw || raw === "[DONE]") return;
+            var event;
+            try{ event = JSON.parse(raw); }catch(e){ return; }
+            if(event.error) throw new Error(event.error.message || "A modell nem válaszolt.");
+            var delta = event.choices && event.choices[0] && event.choices[0].delta;
+            if(!delta) return;
+            if(typeof delta.content === "string") answer += delta.content;
+            if(typeof delta.reasoning_content === "string") thinking += delta.reasoning_content;
+          });
+        });
+      }
+      var parsedMessage = splitAssistantMessage({content:answer, reasoning_content:thinking});
+      if(!parsedMessage.content && !parsedMessage.thinking) throw new Error("A modell üres választ adott.");
       messages.push({role:"assistant", content:parsedMessage.content, thinking:parsedMessage.thinking});
       render();
       persistCurrent();
@@ -1569,6 +1605,7 @@ body{ position: relative; }
       if(error.name !== "AbortError"){
         messages.push({role:"assistant", content:"Hiba: " + error.message, isError:true});
         render();
+        persistCurrent();
         toast(error.message || "Hiba", "err");
       }
     }finally{
@@ -1624,6 +1661,11 @@ body{ position: relative; }
   }
 
   loadHistory();
+  if(history.length){
+    currentId = history[0].id;
+    messages = (history[0].messages || []).slice();
+    render();
+  }
   window.chatApp = {
     newConversation: newConversation,
     loadConversation: loadConversation,
