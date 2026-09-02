@@ -157,12 +157,12 @@ type ChatMessage = { role: string; content: string };
 async function callPrimary(messages: ChatMessage[], maxTokens = 2048): Promise<string> {
   const baseUrl =
     env("MODAL_BASE_URL") ??
-    "https://ksisjsjauxhskajxhakykyus--ep-huihui-qwen3-8-27b-ablitera-a6178a.eu-west.modal.direct/v1";
-  const tokenId = env("MODAL_PROXY_TOKEN_ID") ?? "wk-vvorCkeL5DaeGjAtopf2ZL";
-  const tokenSecret = env("MODAL_PROXY_TOKEN_SECRET") ?? "ws-v3oi61p64N3Ijh8MsrFa3l";
+    "https://harshitkashyap534--glm-53-flash-exl3-uncensored-fastapi-app.modal.run/v1";
+  const tokenId = env("MODAL_PROXY_TOKEN_ID") ?? "";
+  const tokenSecret = env("MODAL_PROXY_TOKEN_SECRET") ?? "";
   const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
   const payload = JSON.stringify({
-    model: "huihui-ai/Huihui-Qwen3.8-27B-abliterated",
+    model: "s-zaizen/GLM-5.3-Flash-EXL3-TR3-3.51bpw-Uncensored",
     messages,
     max_tokens: maxTokens,
     temperature: 0.7,

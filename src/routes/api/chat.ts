@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const MODEL = "huihui-ai/Huihui-Qwen3.8-27B-abliterated";
+const MODEL = "s-zaizen/GLM-5.3-Flash-EXL3-TR3-3.51bpw-Uncensored";
 
 type ChatBody = {
   messages?: unknown;
@@ -29,13 +29,10 @@ export const Route = createFileRoute("/api/chat")({
       POST: async ({ request }) => {
         const baseUrl =
           process.env["MODAL_BASE_URL"] ??
-          "https://ksisjsjauxhskajxhakykyus--ep-huihui-qwen3-8-27b-ablitera-a6178a.eu-west.modal.direct/v1";
-        // Secrets are used when available; the fallbacks keep the preview working.
-        const tokenId = process.env["MODAL_PROXY_TOKEN_ID"] ?? "wk-vvorCkeL5DaeGjAtopf2ZL";
-        const tokenSecret = process.env["MODAL_PROXY_TOKEN_SECRET"] ?? "ws-v3oi61p64N3Ijh8MsrFa3l";
-        if (!tokenId || !tokenSecret) {
-          return errorResponse("A modell hozzáférési kulcsai hiányoznak.", 500);
-        }
+          "https://harshitkashyap534--glm-53-flash-exl3-uncensored-fastapi-app.modal.run/v1";
+        const tokenId = process.env["MODAL_PROXY_TOKEN_ID"] ?? "";
+        const tokenSecret = process.env["MODAL_PROXY_TOKEN_SECRET"] ?? "";
+        // The new endpoint is public and does not require a key.
 
         let body: ChatBody;
         try {
