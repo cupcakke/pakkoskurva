@@ -157,7 +157,7 @@ type ChatMessage = { role: string; content: string };
 async function callPrimary(messages: ChatMessage[], maxTokens = 2048): Promise<string> {
   const baseUrl =
     env("MODAL_BASE_URL") ??
-    "https://harshitkashyap534--glm-53-flash-exl3-uncensored-fastapi-app.modal.run/v1";
+    "https://harshitkashyap534--glm-53-flash-exl3-uncensored-glmmodel-serve.modal.run/v1";
   const tokenId = env("MODAL_PROXY_TOKEN_ID") ?? "";
   const tokenSecret = env("MODAL_PROXY_TOKEN_SECRET") ?? "";
   const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
