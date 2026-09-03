@@ -29,7 +29,7 @@ export const Route = createFileRoute("/api/chat")({
       POST: async ({ request }) => {
         const baseUrl =
           process.env["MODAL_BASE_URL"] ??
-          "https://harshitkashyap534--glm-53-flash-exl3-uncensored-fastapi-app.modal.run/v1";
+          "https://harshitkashyap534--glm-53-flash-exl3-uncensored-glmmodel-serve.modal.run/v1";
         const tokenId = process.env["MODAL_PROXY_TOKEN_ID"] ?? "";
         const tokenSecret = process.env["MODAL_PROXY_TOKEN_SECRET"] ?? "";
         // The new endpoint is public and does not require a key.
